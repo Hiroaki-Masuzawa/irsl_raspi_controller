@@ -58,7 +58,7 @@ class RPIController:
         self.sv_service_name = 'run_robot'
 
     # for supervisor
-    def send_settings(self, use_actuator=True, use_sensor=True, use_camera=False, sensor_config=None, dynamixel_config=None, controller_config=None, send_files=[]):
+    def send_settings(self, use_actuator=True, use_sensor=True, use_camera=False, sensor_config=None, dynamixel_config=None, dlx_baud_rate=None, controller_config=None, send_files=[]):
         """send configuration files
         Args:
             use_actuator (bool) : true if use actuator
@@ -89,6 +89,7 @@ class RPIController:
         use_dynamixel_str = 'true' if use_actuator else 'false'
         use_sensor_str = 'true' if use_sensor else 'false'
         use_camera_str = 'true' if use_camera else 'false'
+        dlx_baud_rate = dlx_baud_rate if dlx_baud_rate is not None else 1000000
 
         #make_shell = 'echo -e \'trap \\"trap - SIGTERM && kill -- -\$\$\\" SIGINT SIGTERM EXIT\\n{} && roslaunch /home/{}/cps_rpi/launch/run_robot.launch dynamixel_settings:={} controller_settings:={} namespace:={} sensor_config_path:={} use_dynamixel:={} use_sensor:={} use_camera:={} & \\nwait\\n\' > {}/run_robot.sh'.format(self.source_command, self.username, load_dynamixel_config_path, load_controller_config_path, self.robotname, load_sensor_config_path, use_dynamixel_str, use_sensor_str, use_camera_str, dist_dir)
         #command = 'bash -lc "mkdir -p {} && rm -f {} && ln -s {} {} && {}"'.format(dist_dir, latest_dir, dist_dir, latest_dir, make_shell)
@@ -103,13 +104,14 @@ export ROS_HOSTNAME=${{ROS_IP}}
 source /opt/ros/noetic/setup.bash
 source /home/{}/catkin_ws/devel/setup.bash
 
-roslaunch /home/{}/irsl_raspi_controller/launch/run_robot.launch dynamixel_settings:={} controller_settings:={} namespace:={} sensor_settings:={} use_dynamixel:={} use_sensor:={} use_camera:={} &
+roslaunch /home/{}/irsl_raspi_controller/launch/run_robot.launch dynamixel_settings:={} controller_settings:={} namespace:={} sensor_settings:={} use_dynamixel:={} use_sensor:={} use_camera:={} dxl_baud_rate:={} &
 wait
 '''.format(self.hostname,
            self.rosmaster if self.rosmaster != '' else '${ROS_IP}',
            self.username,
            self.username, load_dynamixel_config_path, load_controller_config_path,
-           self.namespace, load_sensor_config_path, use_dynamixel_str, use_sensor_str, use_camera_str)
+           self.namespace, load_sensor_config_path, use_dynamixel_str, use_sensor_str, use_camera_str,
+           dlx_baud_rate)
 
         with open('run_robot.sh', mode='w') as f:
             f.write(shell_txt)
