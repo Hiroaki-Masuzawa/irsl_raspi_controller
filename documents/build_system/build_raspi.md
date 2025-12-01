@@ -25,7 +25,7 @@ dynamixelのコントロール、及び、センサーの読み込み(ROSへの�
     ```
     sudo apt update
     sudo apt upgrade
-    sudo apt install ubuntu-desktop libyaml-cpp-dev build-essential python3-smbus python-is-python3 screen python3-pip git vim libeigen3*
+    sudo apt install ubuntu-desktop libyaml-cpp-dev build-essential python3-smbus python-is-python3 screen python3-pip git vim libeigen3* wget
     ```
 - 本リポジトリのクローン
     ```
@@ -71,16 +71,32 @@ echo "source ~/.ros_rc" >> ~/.bashrc
 ## cps関係ソフトウェア設定
 ```
 mkdir -p ~/catkin_ws/src
-git clone https://github.com/ROBOTIS-GIT/DynamixelSDK.git
-git clone https://github.com/IRSL-tut/dynamixel-workbench.git
-git clone https://github.com/ROBOTIS-GIT/dynamixel-workbench-msgs.git
-git clone https://github.com/IRSL-tut/dynamixel_irsl.git
 git clone https://github.com/IRSL-tut/sensor_pi.git
 cd ~/catkin_ws
-catkin build
+wget https://raw.githubusercontent.com/IRSL-tut/irsl_ros_control_shm/refs/heads/main/test/install.noetic.vcs
+(cd src; vcs import --recursive < ../install.noetic.vcs)
+
+catkin init
+catkin config --install
+catkin build irsl_dynamixel_hardware_shm irsl_ros_control_shm sensor_pi
 ```
 
-## choreonoidをインストール
+## supervisorの追加
+### supervisorのインストール
+```
+sudo apt install supervisor
+```
+### supervisorの設定
+```
+sudo cp supervisord.conf /etc/supervisor/supervisord.conf
+sudo cp exec_robot.conf /etc/supervisor/conf.d/.
+```
+
+### supervisorのコマンド起動
+```sudo service supervisor start```
+
+
+## (任意) choreonoidをインストール
 全部で２時間弱かかるので注意．
 ### 依存ツールインストール
 ```
@@ -118,17 +134,3 @@ cd ${HOME}/catkin_ws
 rm -rf devel build
 catkin build
 ```
-
-## supervisorの追加
-### supervisorのインストール
-```
-sudo apt install supervisor
-```
-### supervisorの設定
-```
-sudo cp supervisord.conf /etc/supervisor/supervisord.conf
-sudo cp exec_robot.conf /etc/supervisor/conf.d/.
-```
-
-### supervisorのコマンド起動
-```sudo service supervisor start```
