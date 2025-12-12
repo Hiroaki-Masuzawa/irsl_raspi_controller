@@ -67,6 +67,9 @@ class RPIController:
                       sensor_config=None, 
                       dynamixel_config=None, 
                       control_config=None, 
+                      ros_distro='noetic',
+                      workspace_source=None,
+                      controllers=None,
                       send_files=[]):
         """send configuration files
         Args:
@@ -76,8 +79,11 @@ class RPIController:
             urdf_file            (str) : robot model file path
             joint_list           (str) : joint list file path
             sensor_config        (str) : sensor_configuration file path
-            dynamixel_config    (str) : dynamixel hardware configuration file path
-            control_config     (str) : dynamixel control configuration file path
+            dynamixel_config     (str) : dynamixel hardware configuration file path
+            control_config       (str) : dynamixel control configuration file path
+            ros_distro           (str) : robot's ROS distribution
+            workspace_source      (str) : robot's ROS workspcase (default : /home/<userdname>/catkin_ws)
+            controllers          (str) : controllers' name
             send_files   (list of str) : send file list
         """
         date_string = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
@@ -103,6 +109,7 @@ class RPIController:
         load_urdf = '{}/{}'.format(latest_dir, fname_urdf)
         load_jointlist = '{}/{}'.format(latest_dir, fname_jointlist)
 
+        controllers_str = 'joint_state_controller trajectory_controller' if controllers is None else controllers
         use_dynamixel_str = 'true' if use_actuator else 'false'
         use_sensor_str = 'true' if use_sensor else 'false'
         use_camera_str = 'true' if use_camera else 'false'
@@ -110,6 +117,9 @@ class RPIController:
         #make_shell = 'echo -e \'trap \\"trap - SIGTERM && kill -- -\$\$\\" SIGINT SIGTERM EXIT\\n{} && roslaunch /home/{}/cps_rpi/launch/run_robot.launch dynamixel_settings:={} controller_settings:={} namespace:={} sensor_config_path:={} use_dynamixel:={} use_sensor:={} use_camera:={} & \\nwait\\n\' > {}/run_robot.sh'.format(self.source_command, self.username, load_dynamixel_config_path, load_controller_config_path, self.robotname, load_sensor_config_path, use_dynamixel_str, use_sensor_str, use_camera_str, dist_dir)
         #command = 'bash -lc "mkdir -p {} && rm -f {} && ln -s {} {} && {}"'.format(dist_dir, latest_dir, dist_dir, latest_dir, make_shell)
         command = 'bash -lc "mkdir -p {} && rm -f {} && ln -s {} {}"'.format(dist_dir, latest_dir, dist_dir, latest_dir)
+        workspace_source_file = "/home/{}/catkin_ws/devel/setup.bash".format(self.username) if workspace_source is None else workspace_source
+
+        assert ros_distro in ['noetic', 'one'], "Please select either noetic or one for ros_distro."
 
         shell_txt = '''
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
@@ -117,17 +127,18 @@ trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 export ROS_IP={}
 export ROS_MASTER_URI="http://{}:11311/"
 export ROS_HOSTNAME=${{ROS_IP}}
-source /opt/ros/noetic/setup.bash
-source /home/{}/catkin_ws/devel/setup.bash
+source /opt/ros/{}/setup.bash
+source {}
 
-roslaunch /home/{}/irsl_raspi_controller/launch/run_robot_shm.launch control_config:={} dynamixel_config:={} robot_name:={} urdf_file:={} jointlist:={} sensor_settings:={} use_dynamixel:={} use_sensor:={} use_camera:={} &
+roslaunch /home/{}/irsl_raspi_controller/launch/run_robot_shm.launch control_config:={} dynamixel_config:={} robot_name:={} urdf_file:={} jointlist:={} sensor_settings:={} controllers:="{}" use_dynamixel:={} use_sensor:={} use_camera:={} &
 wait
 '''.format(self.hostname,
            self.rosmaster if self.rosmaster != '' else '${ROS_IP}',
-           self.username,
+           ros_distro,
+           workspace_source_file,
            self.username, 
            load_control_config, load_dynamixel_config,
-           self.namespace, load_urdf, load_jointlist, load_sensor_config_path, use_dynamixel_str, use_sensor_str, use_camera_str)
+           self.namespace, load_urdf, load_jointlist, load_sensor_config_path, controllers_str, use_dynamixel_str, use_sensor_str, use_camera_str)
 
         with open('run_robot.sh', mode='w') as f:
             f.write(shell_txt)
