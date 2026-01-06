@@ -19,6 +19,16 @@ from xmlrpc.client import ServerProxy
 # paramico and scp
 # https://qiita.com/Angelan1720/items/a962e12fa81724b57526
 
+
+import dataclasses
+@dataclasses.dataclass
+class FileNames:
+    fname_sensor_config     = 'sensor_config.yaml'
+    fname_dynamixel_config  = 'dynamixel_config.yaml'
+    fname_control_config    = 'ros_control.yaml'
+    fname_urdf              = 'robot.urdf'
+    fname_jointlist         = 'jointlist.yaml'
+
 class RPIController:
     def __init__(self, namespace, ros_settings_path=None, connection=True, **kwargs):
         """CPS Controller for raspberry pi
@@ -57,59 +67,38 @@ class RPIController:
         self.sv_server = None
         self.sv_service_name = 'run_robot'
 
-    # for supervisor
-    def send_settings(self, 
-                      use_actuator=True, 
-                      use_sensor=True, 
-                      use_camera=False, 
-                      urdf_file=None, 
-                      joint_list=None,
-                      sensor_config=None, 
-                      dynamixel_config=None, 
-                      control_config=None, 
-                      send_files=[]):
-        """send configuration files
+        
+        self.latest_dir = '/home/{}/cps_settings/latest_settings'.format(self.username)
+
+    def write_shell(self, 
+                    fnames=None, 
+                    use_actuator=True, 
+                    use_sensor=False, 
+                    use_camera=False, 
+                    shell_filename='run_robot.sh'):
+        """generate shell scrept run on raspberry pi 
+
         Args:
+            fnames (FileNames)  : filename  data class
             use_actuator (bool) : true if use actuator
             use_sensor   (bool) : true if use sensor
             use_camera   (bool) : true if use use camera
-            urdf_file            (str) : robot model file path
-            joint_list           (str) : joint list file path
-            sensor_config        (str) : sensor_configuration file path
-            dynamixel_config    (str) : dynamixel hardware configuration file path
-            control_config     (str) : dynamixel control configuration file path
-            send_files   (list of str) : send file list
+            shell_filename (str, optional): shell script name run on a Raspberry Pi. Defaults to 'run_robot.sh'.
         """
-        date_string = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-        dist_dir   = '/home/{}/cps_settings/{}'.format(self.username, date_string)
-        latest_dir = '/home/{}/cps_settings/latest_settings'.format(self.username)
+        
 
-        fname_sensor_config        = 'sensor_config.yaml'
-        fname_dynamixel_config  = 'dynamixel_config.yaml'
-        fname_control_config    = 'ros_control.yaml'
-        fname_urdf = 'robot.urdf'
-        fname_jointlist = 'jointlist.yaml'
+        if fnames is None:
+            fnames = FileNames()
 
-        put_sensor_config_path      = '{}/{}'.format(dist_dir, fname_sensor_config)
-        put_dynamixel_config  = '{}/{}'.format(dist_dir, fname_dynamixel_config)
-        put_control_config   = '{}/{}'.format(dist_dir, fname_control_config)
-        put_urdf= '{}/{}'.format(dist_dir, fname_urdf)
-        put_jointlist = '{}/{}'.format(dist_dir, fname_jointlist)
-        put_run_robot_path          = '{}/run_robot.sh'.format(dist_dir)
-
-        load_sensor_config_path     = '{}/{}'.format(latest_dir, fname_sensor_config)
-        load_dynamixel_config   = '{}/{}'.format(latest_dir, fname_dynamixel_config)
-        load_control_config   = '{}/{}'.format(latest_dir, fname_control_config)
-        load_urdf = '{}/{}'.format(latest_dir, fname_urdf)
-        load_jointlist = '{}/{}'.format(latest_dir, fname_jointlist)
+        load_sensor_config_path     = '{}/{}'.format(self.latest_dir, fnames.fname_sensor_config)
+        load_dynamixel_config   = '{}/{}'.format(self.latest_dir, fnames.fname_dynamixel_config)
+        load_control_config   = '{}/{}'.format(self.latest_dir, fnames.fname_control_config)
+        load_urdf = '{}/{}'.format(self.latest_dir, fnames.fname_urdf)
+        load_jointlist = '{}/{}'.format(self.latest_dir, fnames.fname_jointlist)
 
         use_dynamixel_str = 'true' if use_actuator else 'false'
         use_sensor_str = 'true' if use_sensor else 'false'
         use_camera_str = 'true' if use_camera else 'false'
-
-        #make_shell = 'echo -e \'trap \\"trap - SIGTERM && kill -- -\$\$\\" SIGINT SIGTERM EXIT\\n{} && roslaunch /home/{}/cps_rpi/launch/run_robot.launch dynamixel_settings:={} controller_settings:={} namespace:={} sensor_config_path:={} use_dynamixel:={} use_sensor:={} use_camera:={} & \\nwait\\n\' > {}/run_robot.sh'.format(self.source_command, self.username, load_dynamixel_config_path, load_controller_config_path, self.robotname, load_sensor_config_path, use_dynamixel_str, use_sensor_str, use_camera_str, dist_dir)
-        #command = 'bash -lc "mkdir -p {} && rm -f {} && ln -s {} {} && {}"'.format(dist_dir, latest_dir, dist_dir, latest_dir, make_shell)
-        command = 'bash -lc "mkdir -p {} && rm -f {} && ln -s {} {}"'.format(dist_dir, latest_dir, dist_dir, latest_dir)
 
         shell_txt = '''
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
@@ -129,14 +118,55 @@ wait
            load_control_config, load_dynamixel_config,
            self.namespace, load_urdf, load_jointlist, load_sensor_config_path, use_dynamixel_str, use_sensor_str, use_camera_str)
 
-        with open('run_robot.sh', mode='w') as f:
+        with open(shell_filename, mode='w') as f:
             f.write(shell_txt)
 
+    # for supervisor
+    def send_settings(self, 
+                      urdf_file=None, 
+                      joint_list=None,
+                      sensor_config=None, 
+                      dynamixel_config=None, 
+                      control_config=None, 
+                      shell_filename='run_robot.sh',
+                      send_files=[],
+                      **kwargs):
+        """send configuration files
+        Args:
+            use_actuator (bool) : true if use actuator
+            use_sensor   (bool) : true if use sensor
+            use_camera   (bool) : true if use use camera
+            urdf_file            (str) : robot model file path
+            joint_list           (str) : joint list file path
+            sensor_config        (str) : sensor_configuration file path
+            dynamixel_config    (str) : dynamixel hardware configuration file path
+            control_config     (str) : dynamixel control configuration file path
+            shell_filename   (str)  : shell script name run on a Raspberry Pi. Defaults to 'run_robot.sh'.
+            send_files   (list of str) : send file list
+        """
+        date_string = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+        dist_dir   = '/home/{}/cps_settings/{}'.format(self.username, date_string)
+        fnames = FileNames()
+
+        put_sensor_config_path      = '{}/{}'.format(dist_dir, fnames.fname_sensor_config)
+        put_dynamixel_config  = '{}/{}'.format(dist_dir, fnames.fname_dynamixel_config)
+        put_control_config   = '{}/{}'.format(dist_dir, fnames.fname_control_config)
+        put_urdf= '{}/{}'.format(dist_dir, fnames.fname_urdf)
+        put_jointlist = '{}/{}'.format(dist_dir, fnames.fname_jointlist)
+        put_run_robot_path          = '{}/run_robot.sh'.format(dist_dir)
+
+
+        #make_shell = 'echo -e \'trap \\"trap - SIGTERM && kill -- -\$\$\\" SIGINT SIGTERM EXIT\\n{} && roslaunch /home/{}/cps_rpi/launch/run_robot.launch dynamixel_settings:={} controller_settings:={} namespace:={} sensor_config_path:={} use_dynamixel:={} use_sensor:={} use_camera:={} & \\nwait\\n\' > {}/run_robot.sh'.format(self.source_command, self.username, load_dynamixel_config_path, load_controller_config_path, self.robotname, load_sensor_config_path, use_dynamixel_str, use_sensor_str, use_camera_str, dist_dir)
+        #command = 'bash -lc "mkdir -p {} && rm -f {} && ln -s {} {} && {}"'.format(dist_dir, latest_dir, dist_dir, latest_dir, make_shell)
+        command = 'bash -lc "mkdir -p {} && rm -f {} && ln -s {} {}"'.format(dist_dir, self.latest_dir, dist_dir, self.latest_dir)
+        if not os.path.exists(shell_filename):
+            self.write_shell(fnames, shell_filename=shell_filename, **kwargs)
+                        
         self.ssh_stds["operation"] = self.client.exec_command(command, get_pty=True)
         ##
         time.sleep(2)
         with scp.SCPClient(self.client.get_transport()) as scpc:
-            scpc.put('run_robot.sh', put_run_robot_path) ##
+            scpc.put(shell_filename, put_run_robot_path) ##
             if sensor_config is not None:
                 scpc.put(sensor_config, put_sensor_config_path)
             if dynamixel_config is not None:
